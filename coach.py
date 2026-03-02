@@ -108,7 +108,7 @@ def main():
         數據：{json.dumps(payloads, ensure_ascii=False)}
         """
         
-        response = ai_client.models.generate_content(model='gemini-2.5-pro', contents=prompt)
+        response = ai_client.models.generate_content(model='gemini-3.1-pro-preview, contents=prompt)
         full_text = response.text
 
         # 🧠 解析 AI 的回覆，把報告和記憶切開
