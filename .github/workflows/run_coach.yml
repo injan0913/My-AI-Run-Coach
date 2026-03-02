@@ -26,7 +26,22 @@ jobs:
           GARMIN_HASH: ${{ secrets.GARMIN_HASH }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: python coach.py
+        run: |
+          # 設定最多重試 3 次
+          for i in 1 2 3; do
+            echo "▶️ 開始第 $i 次嘗試執行教練分析..."
+            
+            # 如果執行成功 (&& exit 0)，就直接跳出迴圈並標記成功
+            python coach.py && exit 0
+            
+            # 如果失敗了，印出警告並等待 60 秒
+            echo "⚠️ 第 $i 次執行失敗！等待 60 秒後自動重試..."
+            sleep 60
+          done
+          
+          # 如果 3 次都失敗，讓 Actions 顯示紅燈報錯停止
+          echo "❌ 已經嘗試 3 次皆失敗，請檢查 API 狀態。"
+          exit 1
 
       - name: Commit Last Activity ID and Coach Memory
         run: |
