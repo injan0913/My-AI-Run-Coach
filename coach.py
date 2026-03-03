@@ -169,6 +169,7 @@ def main():
     except Exception as e:
         print(f"❌ 執行失敗：{e}")
         send_discord_notify(f"❌ AI 教練執行錯誤：{e}")
+        exit(1)
 
 if __name__ == "__main__":
     main()
