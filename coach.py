@@ -13,18 +13,6 @@ DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 LAST_ID_FILE = "last_activity_id.txt"
 MEMORY_FILE = "coach_memory.txt" 
 
-# ==========================================
-# ❤️ 你的自訂心率區間 (請根據你 Fenix 8 Pro 內的實際設定修改這些數字！)
-# ==========================================
-CUSTOM_HR_ZONES = {
-    "Z1_恢復區 (Recovery)": "135-153 bpm",
-    "Z2_有氧耐力區 (Endurance)": "154-166 bpm",
-    "Z3_節奏區 (Tempo)": "167-172 bpm",
-    "Z4_乳酸閾值區 (Threshold)": "173-183 bpm",
-    "Z5_無氧極限區 (Maximum)": "184+ bpm"
-}
-# ==========================================
-
 def send_discord_notify(message):
     chunks = [message[i:i+1900] for i in range(0, len(message), 1900)]
     for chunk in chunks:
@@ -34,7 +22,7 @@ def send_discord_notify(message):
 
 def main():
     try:
-        print("🔄 1. 正在連線至 Garmin...")
+        print("🔄 1. 連線至 Garmin 並讀取資料...")
         garth.client.loads(GARMIN_HASH)
         garmin_client = Garmin()
         garmin_client.garth = garth.client
@@ -49,82 +37,91 @@ def main():
             with open(MEMORY_FILE, "r", encoding="utf-8") as f:
                 past_memory = f.read().strip()
 
-        print("🔍 2. 正在比對新紀錄...")
+        print("🔍 2. 檢查新運動紀錄...")
         activities = garmin_client.get_activities(0, 200)
         new_records = []
-        
         for act in activities:
             if str(act.get('activityId')) == last_id:
                 break 
             new_records.append(act)
 
         if not new_records:
-            print("✅ 目前沒有新的運動紀錄。")
+            print("✅ 目前沒有新紀錄。")
             return
         
-        print(f"🎉 發現 {len(new_records)} 筆新紀錄！正在整理數據...")
         payloads = []
         act_names = []
         for act in new_records:
             act_id = act.get('activityId')
             act_names.append(act.get('activityName'))
-            summary = garmin_client.get_activity(act_id)
-            splits = garmin_client.get_activity_splits(act_id)
             
+            # ✂️ Fenix 8 Pro 專屬黃金數據萃取 (根據你的 Raw Data 結構)
             slim_act = {
                 "name": act.get('activityName'),
-                "distance_m": act.get('distance', 0),
-                "duration_s": act.get('duration', 0),
-                "elevation_gain_m": act.get('elevationGain', 0),
-                "avg_hr": summary.get('averageHR') or act.get('averageHR') or summary.get('averageHeartRateInBeatsPerMinute') or 0,
-                "max_hr": summary.get('maxHR') or act.get('maxHR') or summary.get('maxHeartRateInBeatsPerMinute') or 0,
-                "avg_cadence": summary.get('averageRunningCadenceInStepsPerMinute') or act.get('averageRunningCadenceInStepsPerMinute') or summary.get('avgCadence') or 0,
-                "avg_stride_length": summary.get('averageStrideLength') or act.get('averageStrideLength') or summary.get('avgStrideLength') or 0,
-                "avg_vertical_oscillation": summary.get('avgVerticalOscillation') or summary.get('averageVerticalOscillation') or act.get('avgVerticalOscillation') or 0,
-                "avg_ground_contact_time": summary.get('avgGroundContactTime') or summary.get('averageGroundContactTime') or act.get('avgGroundContactTime') or 0,
+                "type": act.get('activityType', {}).get('typeKey', ''),
                 
-                # 🏃‍♂️ 嘗試抓取停留在各心率區間的時間 (如果有資料的話)
-                "time_in_hr_zones": summary.get('timeInHrZone') or summary.get('zoneDTOs') or "未提供區間停留時間",
+                # 基礎與地形指標
+                "distance_m": round(act.get('distance', 0), 2),
+                "duration_s": round(act.get('duration', 0), 2),
+                "elevation_gain_m": round(act.get('elevationGain', 0), 2),
+                "elevation_loss_m": round(act.get('elevationLoss', 0), 2),
+                "avg_speed_m_s": round(act.get('averageSpeed', 0), 3),
+                "avg_gap_m_s": round(act.get('avgGradeAdjustedSpeed', 0), 3), # 等價平地配速
                 
-                "laps": [{"distance_m": lap.get('distance', 0), 
-                          "duration_s": lap.get('duration', 0), 
-                          "avg_hr": lap.get('averageHR') or lap.get('averageHeartRateInBeatsPerMinute') or 0,
-                          "avg_cadence": lap.get('averageRunningCadenceInStepsPerMinute') or lap.get('averageRunCadence') or lap.get('avgCadence') or 0,
-                          "avg_vertical_oscillation": lap.get('avgVerticalOscillation') or lap.get('averageVerticalOscillation') or 0,
-                          "avg_ground_contact_time": lap.get('avgGroundContactTime') or lap.get('averageGroundContactTime') or 0
-                         } for lap in splits.get('lapDTOs', [])] if splits else []
+                # 心率與區間停留時間 (秒)
+                "avg_hr": act.get('averageHR', 0),
+                "max_hr": act.get('maxHR', 0),
+                "hr_zones_s": {
+                    "Z1": round(act.get('hrTimeInZone_1', 0), 1),
+                    "Z2": round(act.get('hrTimeInZone_2', 0), 1),
+                    "Z3": round(act.get('hrTimeInZone_3', 0), 1),
+                    "Z4": round(act.get('hrTimeInZone_4', 0), 1),
+                    "Z5": round(act.get('hrTimeInZone_5', 0), 1),
+                },
+                
+                # 跑步動態與功率
+                "avg_cadence": act.get('averageRunningCadenceInStepsPerMinute', 0),
+                "avg_stride_length_cm": round(act.get('avgStrideLength', 0), 2),
+                "avg_vertical_oscillation_cm": round(act.get('avgVerticalOscillation', 0), 2),
+                "avg_ground_contact_time_ms": round(act.get('avgGroundContactTime', 0), 2),
+                "avg_vertical_ratio": round(act.get('avgVerticalRatio', 0), 2),
+                "avg_power_w": act.get('avgPower', 0),
+                
+                # 訓練效益與疲勞
+                "training_load": round(act.get('activityTrainingLoad', 0), 2),
+                "aerobic_TE": act.get('aerobicTrainingEffect', 0),
+                "training_effect_label": act.get('trainingEffectLabel', "")
             }
             payloads.append(slim_act)
             
         names_str = "、".join(act_names)
-        print(f"🧠 3. 正在喚醒具備記憶的 AI 教練 [{names_str}]...")
+        print("🧠 3. 呼叫具備記憶的 Gemini API...")
         ai_client = genai.Client(api_key=GEMINI_API_KEY)
-        
         tw_tz = timezone(timedelta(hours=8))
         today_str = datetime.now(tw_tz).strftime("%Y年%m月%d日")
         
         prompt = f"""
-        今天是 {today_str}。你是一位專業的越野跑與馬拉松教練。這是我最新累積的 {len(new_records)} 筆 Garmin Fenix 8 Pro 運動數據：{names_str}。
-
-        【跑者的自訂心率區間】
-        {json.dumps(CUSTOM_HR_ZONES, ensure_ascii=False)}
+        今天是 {today_str}。你是一位專業的越野跑與馬拉松教練。
+        跑者資料：身高 161cm, 體重 63kg。
+        目標賽事：4/12 30km 越野賽(1721m 爬升)、4/26 半馬。
 
         【上次的教練交接日誌（過去記憶）】
         {past_memory}
 
-        任務指示：
-        考量我 161 cm 的身高，請嚴格比對我的「平均心率 (avg_hr)」與「分段心率 (laps avg_hr)」是否符合【跑者的自訂心率區間】的預期訓練效益。
-        綜合評估高階跑步動態（步頻、步距、垂直震幅、觸地時間），並結合「上次的教練交接日誌」判斷疲勞累積。
-        請推算距離 4 月 12 日的 30km 越野賽（1721m 爬升）及 4 月 26 日的半馬剩餘天數，給予符合當前週期的強度與步態控制建議。
-        補給需考量防脹氣好消化，賽後恢復請建議如何搭配鎂、鈣。
+        任務：
+        這是最新 Garmin 數據：{names_str}。
+        1. 地形與配速：分析 GAP (等價平地配速) 與 功率 (avg_power_w) 判斷上下坡體能分配是否合理。
+        2. 心率區間：檢查 hr_zones_s (各區間停留秒數) 是否符合 {today_str} 應有的訓練強度。
+        3. 跑步經濟性：綜合評估步頻、步距、垂直震幅與觸地時間。
+        4. 疲勞監控：依據訓練負荷 (training_load) 與交接日誌，推算疲勞度。
+        5. 給予賽前倒數的課表微調，並針對易脹氣體質提供好消化的賽中補給，以及賽後鈣/鎂的恢復策略。
 
-        ⚠️ 輸出格式極度重要，請嚴格遵守以下結構（必須包含 ===MEMORY_START=== 分隔線）：
-
-        (這裡寫給跑者的 Discord 報告，多用條列式與 Emoji，總字數 2000 字內)
+        ⚠️ 輸出格式：
+        (給跑者的 Discord 報告，2000字內，多用 Emoji，排版清晰易讀)
         ===MEMORY_START===
-        (這裡寫給明天你自己的交接備忘錄：簡述目前的累積疲勞度、心率區間表現、以及下次需要特別關注的指標。限 300 字以內，不需對跑者說話，這是你的內部筆記)
+        (給明天你的內部筆記：簡述訓練負荷、疲勞度與下次觀測重點，300字內)
 
-        數據：{json.dumps(payloads, ensure_ascii=False)}
+        運動數據：{json.dumps(payloads, ensure_ascii=False)}
         """
         
         response = ai_client.models.generate_content(model='gemini-3.1-pro-preview', contents=prompt)
@@ -132,29 +129,23 @@ def main():
 
         if "===MEMORY_START===" in full_text:
             report_part, new_memory = full_text.split("===MEMORY_START===")
-            report_part = report_part.strip()
-            new_memory = new_memory.strip()
+            report_part, new_memory = report_part.strip(), new_memory.strip()
         else:
-            report_part = full_text.strip()
-            new_memory = "⚠️ 教練太累了忘記寫日誌，請根據最新數據與賽事倒數重新評估。"
+            report_part, new_memory = full_text.strip(), "無新紀錄，維持原訓練計畫。"
 
-        print("📱 4. 正在發送報告並寫入教練記憶...")
-        send_discord_notify(f"🏃‍♂️ **AI 教練早安報告 ({today_str})：{names_str}**\n\n{report_part}")
+        print("📱 4. 發送 Discord 報告...")
+        send_discord_notify(f"🏃‍♂️ **AI 教練專屬報告 ({today_str})**\n\n{report_part}")
         
         with open(LAST_ID_FILE, "w") as f:
             f.write(str(new_records[0].get('activityId')))
-            
         with open(MEMORY_FILE, "w", encoding="utf-8") as f:
             f.write(new_memory)
             
-        print("✅ 大功告成！Discord 已送出，教練記憶已存檔。")
+        print("✅ 大功告成！")
 
     except Exception as e:
-        print(f"❌ AI 教練執行失敗：{e}")
-        try:
-            send_discord_notify(f"❌ AI 教練執行失敗：{e}")
-        except:
-            pass
+        print(f"❌ 執行失敗：{e}")
+        send_discord_notify(f"❌ AI 教練執行錯誤：{e}")
 
 if __name__ == "__main__":
     main()
