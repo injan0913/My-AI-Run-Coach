@@ -2,8 +2,8 @@ name: Daily AI Run Coach
 
 on:
   schedule:
-    # 每天台灣時間早上 7:00 執行 (UTC 23:00)
-    - cron: '0 23 * * *'
+    # 每天台灣時間早上 9:00 執行 (UTC 01:00)
+    - cron: '0 1 * * *'
   workflow_dispatch: # 允許手動點擊按鈕執行
 
 jobs:
