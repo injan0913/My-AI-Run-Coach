@@ -13,6 +13,14 @@ DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 LAST_ID_FILE = "last_activity_id.txt"
 MEMORY_FILE = "coach_memory.txt" 
 
+CUSTOM_HR_ZONES = {
+    "Z1_恢復區 (Recovery)": "135-153 bpm",
+    "Z2_有氧耐力區 (Endurance)": "154-166 bpm",
+    "Z3_節奏區 (Tempo)": "167-172 bpm",
+    "Z4_乳酸閾值區 (Threshold)": "173-183 bpm",
+    "Z5_無氧極限區 (Maximum)": "184+ bpm"
+}
+
 def send_discord_notify(message):
     chunks = [message[i:i+1900] for i in range(0, len(message), 1900)]
     for chunk in chunks:
