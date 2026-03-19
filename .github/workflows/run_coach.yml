@@ -19,7 +19,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install Dependencies
-        run: pip install garminconnect garth google-genai requests[socks]
+        run: pip install garminconnect garth google-genai requests[socks] httpx[socks]
 
       # 🛡️ 隱身斗篷：安裝 Cloudflare WARP 並啟動 Socks5 Proxy 模式
       - name: Setup Cloudflare WARP Proxy
