@@ -8,7 +8,7 @@ on:
 
 jobs:
   analyze_garmin:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -21,11 +21,33 @@ jobs:
       - name: Install Dependencies
         run: pip install garminconnect garth google-genai requests
 
+      # 🛡️ 隱身斗篷：安裝 Cloudflare WARP 並啟動 Socks5 Proxy 模式
+      - name: Setup Cloudflare WARP Proxy
+        run: |
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update
+          sudo apt-get install -y cloudflare-warp
+          
+          # 初始化並設定為 Proxy 模式 (避免切斷 GitHub Actions 自身的連線)
+          warp-cli --accept-tos registration new
+          warp-cli --accept-tos mode proxy
+          warp-cli --accept-tos proxy port 40000
+          warp-cli --accept-tos connect
+          
+          echo "等待 WARP 連線..."
+          sleep 5
+          echo "WARP Proxy 啟動完成！"
+
+      # 🏃‍♂️ 執行教練腳本 (掛載 Proxy 環境變數)
       - name: Run Coach Script
         env:
           GARMIN_HASH: ${{ secrets.GARMIN_HASH }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          # 🛡️ 強制 Python 透過 WARP 的 Socks5 通道連線 Garmin
+          https_proxy: socks5://127.0.0.1:40000
+          http_proxy: socks5://127.0.0.1:40000          
         run: |
           # 設定最多重試 3 次
           for i in 1 2 3; do
