@@ -45,6 +45,8 @@ jobs:
           GARMIN_HASH: ${{ secrets.GARMIN_HASH }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
           # 🛡️ 強制 Python 透過 WARP 的 Socks5 通道連線 Garmin
           https_proxy: socks5://127.0.0.1:40000
           http_proxy: socks5://127.0.0.1:40000          
