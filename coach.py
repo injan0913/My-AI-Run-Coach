@@ -5,6 +5,8 @@ import requests
 from garminconnect import Garmin
 from google import genai 
 from datetime import datetime, timezone, timedelta
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
 
 GARMIN_HASH = os.environ.get("GARMIN_HASH")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -20,6 +22,48 @@ CUSTOM_HR_ZONES = {
     "Z4_乳酸閾值區 (Threshold)": "173-183 bpm",
     "Z5_無氧極限區 (Maximum)": "184+ bpm"
 }
+
+def append_to_google_sheet(date_str, payloads):
+    """將每日摘要與完整 JSON 寫入 Google Sheets"""
+    creds_json = os.environ.get("GCP_CREDENTIALS")
+    sheet_id = os.environ.get("SHEET_ID")
+    
+    if not creds_json or not sheet_id:
+        print("⚠️ 缺少 Google Sheets 設定，跳過寫入。")
+        return
+
+    try:
+        creds_dict = json.loads(creds_json)
+        creds = service_account.Credentials.from_service_account_info(
+            creds_dict, scopes=['https://www.googleapis.com/auth/spreadsheets']
+        )
+        service = build('sheets', 'v4', credentials=creds)
+        
+        for act in payloads:
+            # 整理概要數據
+            summary_row = [
+                date_str,
+                act.get('name'),
+                round(act.get('distance_m', 0) / 1000, 2),  # 轉為 km
+                round(act.get('duration_s', 0) / 60, 1),    # 轉為 min
+                act.get('avg_hr'),
+                act.get('elevation_gain_m'),
+                act.get('avg_gap_m_s'),
+                act.get('training_effect_label'),
+                json.dumps(act, ensure_ascii=False)         # 完整 JSON 存入最後一欄
+            ]
+            
+            body = {'values': [summary_row]}
+            service.spreadsheets().values().append(
+                spreadsheetId=sheet_id,
+                range="Sheet1!A1", # 假設工作表名稱是 Sheet1
+                valueInputOption="USER_ENTERED",
+                body=body
+            ).execute()
+            
+        print(f"📊 成功將 {len(payloads)} 筆活動數據同步至 Google Sheets！")
+    except Exception as e:
+        print(f"❌ 寫入 Google Sheets 失敗：{e}")
 
 def send_discord_notify(message):
     chunks = [message[i:i+1900] for i in range(0, len(message), 1900)]
@@ -215,6 +259,8 @@ def main():
             f.write(new_memory)
             
         print("✅ 大功告成！")
+
+    append_to_google_sheet(today_str, payloads)
 
     except Exception as e:
         print(f"❌ 執行失敗：{e}")
