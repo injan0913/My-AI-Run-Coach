@@ -258,9 +258,9 @@ def main():
         with open(MEMORY_FILE, "w", encoding="utf-8") as f:
             f.write(new_memory)
             
-        print("✅ 大功告成！")
+        append_to_google_sheet(today_str, payloads)
 
-    append_to_google_sheet(today_str, payloads)
+        print("✅ 大功告成！")
 
     except Exception as e:
         print(f"❌ 執行失敗：{e}")
