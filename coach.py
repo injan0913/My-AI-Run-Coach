@@ -42,7 +42,7 @@ def append_to_google_sheet(date_str, payloads):
         # 🌟 準備一個大箱子，用來裝所有的資料列
         all_rows = []
         
-        for act in payloads:
+        for act in reversed(payloads):
             real_date = act.get('activity_date') or "未知日期"
 
             summary_row = [
