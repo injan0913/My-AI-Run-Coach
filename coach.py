@@ -103,6 +103,28 @@ def main():
         today_str = today_date.strftime("%Y年%m月%d日")
         today_iso = today_date.strftime("%Y-%m-%d")
 
+        print(f"🔄 1. 準備啟動教練系統 (今日日期: {today_str})...")
+
+        # 🌟 2. 金鑰驗證防護罩
+        if not GARMIN_HASH:
+            print("❌ 嚴重錯誤：GitHub Secrets 中找不到 GARMIN_HASH！")
+            return
+
+        try:
+            garth.client.loads(GARMIN_HASH)
+            garmin_client = Garmin()
+            garmin_client.garth = garth.client
+        
+            # 主動戳一下 API 測試是否真的登入成功
+            user_name = garmin_client.get_full_name()
+            print(f"✅ 成功登入 Garmin Connect！使用者：{user_name}")
+        
+        except Exception as e:
+            print(f"❌ 登入失敗：GARMIN_HASH 金鑰已過期或格式錯誤！請重新取得。")
+            print(f"錯誤細節：{e}")
+            # 如果你有設定 Discord，這裡可以呼叫 send_discord_notify("❌ 教練斷線啦！請更新 Garmin 金鑰！")
+            return # 直接結束程式，不要再往下執行抓資料了
+
         print("🛏️ 2. 正在抓取昨晚的睡眠與 HRV 數據...")
         daily_health = {
             "sleep_score": "無資料",
