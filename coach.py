@@ -24,7 +24,7 @@ CUSTOM_HR_ZONES = {
 }
 
 def append_to_google_sheet(date_str, payloads):
-    """將每日摘要與完整 JSON 寫入 Google Sheets"""
+    """將每日摘要與完整 JSON 寫入 Google Sheets (批次寫入版)"""
     creds_json = os.environ.get("GCP_CREDENTIALS")
     sheet_id = os.environ.get("SHEET_ID")
     
@@ -39,8 +39,10 @@ def append_to_google_sheet(date_str, payloads):
         )
         service = build('sheets', 'v4', credentials=creds)
         
+        # 🌟 準備一個大箱子，用來裝所有的資料列
+        all_rows = []
+        
         for act in payloads:
-            # 🛡️ 加入空值防護：如果沒有數據就補 0 或空字串
             summary_row = [
                 date_str,
                 act.get('name') or "未知活動",
@@ -50,19 +52,22 @@ def append_to_google_sheet(date_str, payloads):
                 act.get('elevation_gain_m') or 0,
                 act.get('avg_gap_m_s') or 0,
                 act.get('training_effect_label') or "",
-                json.dumps(act, ensure_ascii=False)  # 完整 JSON
+                json.dumps(act, ensure_ascii=False)
             ]
+            # 把每一列資料裝進大箱子裡
+            all_rows.append(summary_row)
             
-            body = {'values': [summary_row]}
+        # 🌟 只有當箱子裡有資料時，才發送 1 次寫入請求
+        if all_rows:
+            body = {'values': all_rows}
             service.spreadsheets().values().append(
                 spreadsheetId=sheet_id,
-                # 🌟 神級解法：直接填 "A1"，Google 會自動尋找檔案的第一個分頁並寫在最下面！
                 range="A1", 
                 valueInputOption="USER_ENTERED",
                 body=body
             ).execute()
             
-        print(f"📊 成功將 {len(payloads)} 筆活動數據同步至 Google Sheets！")
+        print(f"📊 成功將 {len(payloads)} 筆活動數據「一次性」同步至 Google Sheets！")
     except Exception as e:
         print(f"❌ 寫入 Google Sheets 失敗：{e}")
 
