@@ -40,23 +40,24 @@ def append_to_google_sheet(date_str, payloads):
         service = build('sheets', 'v4', credentials=creds)
         
         for act in payloads:
-            # 整理概要數據
+            # 🛡️ 加入空值防護：如果沒有數據就補 0 或空字串
             summary_row = [
                 date_str,
-                act.get('name'),
-                round(act.get('distance_m', 0) / 1000, 2),  # 轉為 km
-                round(act.get('duration_s', 0) / 60, 1),    # 轉為 min
-                act.get('avg_hr'),
-                act.get('elevation_gain_m'),
-                act.get('avg_gap_m_s'),
-                act.get('training_effect_label'),
-                json.dumps(act, ensure_ascii=False)         # 完整 JSON 存入最後一欄
+                act.get('name') or "未知活動",
+                round(act.get('distance_m') / 1000, 2) if act.get('distance_m') else 0,
+                round(act.get('duration_s') / 60, 1) if act.get('duration_s') else 0,
+                act.get('avg_hr') or 0,
+                act.get('elevation_gain_m') or 0,
+                act.get('avg_gap_m_s') or 0,
+                act.get('training_effect_label') or "",
+                json.dumps(act, ensure_ascii=False)  # 完整 JSON
             ]
             
             body = {'values': [summary_row]}
             service.spreadsheets().values().append(
                 spreadsheetId=sheet_id,
-                range="Sheet1!A1", # 假設工作表名稱是 Sheet1
+                # 🌟 神級解法：直接填 "A1"，Google 會自動尋找檔案的第一個分頁並寫在最下面！
+                range="A1", 
                 valueInputOption="USER_ENTERED",
                 body=body
             ).execute()
