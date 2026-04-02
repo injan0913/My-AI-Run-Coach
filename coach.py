@@ -43,8 +43,10 @@ def append_to_google_sheet(date_str, payloads):
         all_rows = []
         
         for act in payloads:
+            real_date = act.get('activity_date') or "未知日期"
+
             summary_row = [
-                date_str,
+                real_date,
                 act.get('name') or "未知活動",
                 round(act.get('distance_m') / 1000, 2) if act.get('distance_m') else 0,
                 round(act.get('duration_s') / 60, 1) if act.get('duration_s') else 0,
@@ -148,6 +150,10 @@ def main():
             # 抓取「摘要」與「分段/Lap 細節」
             summary = garmin_client.get_activity(act_id)
             splits = garmin_client.get_activity_splits(act_id)
+
+            # 🌟 擷取活動真實的當地時間
+            start_local = act.get('startTimeLocal', '')
+            activity_date = start_local.split(" ")[0] if start_local else today_str
             
             # ✂️ 萃取課表分段摘要 (Warmup, Active, Cooldown)
             split_summaries = []
@@ -177,6 +183,7 @@ def main():
                     })
 
             slim_act = {
+                "activity_date": activity_date,
                 "name": act.get('activityName'),
                 "type": act.get('activityType', {}).get('typeKey', ''),
                 "distance_m": round(act.get('distance', 0), 2),
